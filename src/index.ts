@@ -1,5 +1,6 @@
 // src/index.ts
 import { config } from "./config";
+import { AnalyzerService } from "./services/analyzer/AnalyzerService";
 import { CacheService } from "./services/CacheService";
 import { BinanceApiService } from "./services/collector/BinanceApiService";
 import { BinanceWebSocketService } from "./services/collector/BinanceWebSocketService";
@@ -11,6 +12,7 @@ async function main() {
   const cacheService = new CacheService();
   const apiService = new BinanceApiService();
   const webSocketService = new BinanceWebSocketService(cacheService);
+  const analyzerService = new AnalyzerService();
 
   // 2. Récupération des données historiques et initialisation du cache
   try {
@@ -42,15 +44,20 @@ async function main() {
     // Ici, vous pouvez déclencher votre logique de trading, etc.
     if (interval === config.INTERVALS.ONE_MINUTE) {
       const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
-      const klines15m = cacheService.getCache(
-        config.INTERVALS.FIFTEEN_MINUTES!
-      );
 
-      // Créez l'objet exact que votre IA recevrait
-      // const dataForAI = {
-      //   oneMinuteKlines: klines1m,
-      //   fifteenMinuteKlines: klines15m,
-      // };
+      if (klines1m) {
+        // 3. Appeler le service d'analyse avec les données du cache
+        const analysis = analyzerService.analyze(klines1m);
+
+        if (analysis) {
+          // 4. AFFICHER LE RÉSULTAT !
+          console.log("========================================");
+          console.log("📊 New Analysis Result:");
+          console.log(JSON.stringify(analysis, null, 2));
+
+          // C'EST ICI QUE VOUS ENVERREZ `analysis` AU MODULE `CERVEAU`
+        }
+      }
     }
   });
 
