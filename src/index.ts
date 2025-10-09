@@ -1,8 +1,8 @@
 // src/index.ts
-import { BinanceApiService } from "./services/BinanceApiService";
-import { BinanceWebSocketService } from "./services/BinanceWebSocketService";
-import { CacheService } from "./services/CacheService";
 import { config } from "./config";
+import { CacheService } from "./services/CacheService";
+import { BinanceApiService } from "./services/collector/BinanceApiService";
+import { BinanceWebSocketService } from "./services/collector/BinanceWebSocketService";
 
 async function main() {
   console.log("Starting the trading application...");

@@ -1,9 +1,9 @@
 // src/services/BinanceWebSocketService.ts
 // import { WebsocketStream } from ' @binance/connector';
-import type { Kline } from '../types/kline';
-import { config } from '../config/index';
+import type { Kline } from '../../types/kline';
+import { config } from '../../config/index';
 import EventEmitter from 'events';
-import { CacheService } from './CacheService'; // Import du CacheService
+import { CacheService } from '../CacheService'; // Import du CacheService
 import { WebsocketStream } from '@binance/connector';
 
 /**

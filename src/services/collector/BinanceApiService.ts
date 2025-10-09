@@ -1,7 +1,7 @@
 // src/services/BinanceApiService.ts
 import { Spot } from '@binance/connector'; // This will now work correctly!
-import { config } from '../config';
-import { Kline } from '../types/kline';
+import { config } from '../../config';
+import { Kline } from '../../types/kline';
 
 /**
  * Service to interact with the Binance REST API.
