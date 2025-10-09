@@ -1,50 +1,57 @@
 // src/services/BinanceWebSocketService.ts
-import { WebsocketStream } from '@binance/connector';
+// import { WebsocketStream } from ' @binance/connector';
 import type { Kline } from '../types/kline';
 import { config } from '../config/index';
 import EventEmitter from 'events';
+import { CacheService } from './CacheService'; // Import du CacheService
+import { WebsocketStream } from '@binance/connector';
 
 /**
- * A service that connects to the Binance WebSocket stream for Kline (candlestick) data
- * using the official Binance Connector.
- *
- * @extends EventEmitter
+ * Connects to Binance WebSocket streams and updates a CacheService with new kline data.
  */
 export class BinanceWebSocketService extends EventEmitter {
-  private ws: WebsocketStream | null = null;
+  private connections: Map<string, WebsocketStream> = new Map();
   private readonly symbol: string;
-  private readonly interval: string;
+  // Le service dépend maintenant du CacheService
+  private cacheService: CacheService;
 
-  constructor() {
+  constructor(cacheService: CacheService) {
     super();
     this.symbol = config.SYMBOL;
-    this.interval = config.INTERVAL;
-    this.connect();
+    this.cacheService = cacheService;
   }
 
-  private connect(): void {
-    console.log(`Attempting to connect to Binance WebSocket for ${this.symbol}...`);
+  /**
+   * Connects to the kline stream for a specific interval.
+   * @param interval The interval to connect to (e.g., '1m', '15m').
+   */
+  public connect(interval: string): void {
+    if (this.connections.has(interval)) {
+      console.log(`Connection for ${interval} already exists.`);
+      return;
+    }
 
-    this.ws = new WebsocketStream({
-        callbacks: {
-            open: () => console.log(`Binance WebSocket connection established for ${this.symbol}.`),
-            close: () => console.log('Binance WebSocket connection closed.'),
-            message: this.onMessage.bind(this)
-        }
+    console.log(`Attempting to connect to Binance WebSocket for ${this.symbol} on ${interval}...`);
+    
+    const ws = new WebsocketStream({
+      callbacks: {
+        open: () => console.log(`WebSocket connection established for ${interval}.`),
+        close: () => console.log(`WebSocket connection closed for ${interval}.`),
+        message: (data: string) => this.onMessage(data, interval),
+      },
     });
 
-    this.ws.kline(this.symbol.toLowerCase(), this.interval);
+    ws.kline(this.symbol.toLowerCase(), interval);
+    this.connections.set(interval, ws);
   }
 
-  private onMessage(data: string): void {
+  private onMessage(data: string, interval: string): void {
     try {
       const message = JSON.parse(data);
 
-      // We are only interested in 'kline' events where the kline is closed.
       if (message.e === 'kline' && message.k.x === true) {
         const klineData = message.k;
 
-        // Map the raw data to our clean 'Kline' interface.
         const closedKline: Kline = {
           openTime: klineData.t,
           open: klineData.o,
@@ -53,19 +60,27 @@ export class BinanceWebSocketService extends EventEmitter {
           close: klineData.c,
           volume: klineData.v,
         };
+        
+        // Mettre à jour le cache au lieu d'émettre directement la bougie
+        this.cacheService.addKline(interval, closedKline);
 
-        this.emit('kline:closed', closedKline);
+        // Émettre un événement pour signaler que le cache a été mis à jour
+        this.emit(`kline:updated`, { interval, kline: closedKline });
       }
     } catch (error) {
-      console.error('Error parsing WebSocket message:', error);
+      console.error(`Error parsing WebSocket message for ${interval}:`, error);
     }
   }
 
-  public close(): void {
-    if (this.ws) {
-      console.log('Closing Binance WebSocket connection permanently.');
-      this.ws.disconnect();
-      this.ws = null;
-    }
+  /**
+   * Closes all active WebSocket connections.
+   */
+  public closeAll(): void {
+    console.log('Closing all Binance WebSocket connections.');
+    this.connections.forEach((ws, interval) => {
+      ws.disconnect();
+      console.log(`Connection for ${interval} closed.`);
+    });
+    this.connections.clear();
   }
 }

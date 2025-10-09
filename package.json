@@ -14,7 +14,9 @@
   "description": "",
   "dependencies": {
     "@binance/connector": "^3.6.1",
+    "@binance/spot": "^19.0.0",
     "@binance/types": "^1.0.5",
+    "dotenv": "^17.2.3",
     "node": "^24.10.0",
     "ws": "^8.18.3"
   },
