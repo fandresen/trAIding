@@ -17,9 +17,12 @@ declare module '@binance/connector' {
   }
 
   // Declare the classes you are actually using
-  export class Spot {
-    constructor(apiKey?: string, apiSecret?: string, options?: SpotOptions);
+  export class UMFutures {
+    constructor(apiKey?: string, apiSecret?: string, options?: UMFuturesOptions);
+    
+    // Méthodes que nous utilisons
     klines(symbol: string, interval: string, options?: { limit?: number }): Promise<{ data: any[] }>;
+    getAccountInformation(options?: any): Promise<{ data: any }>;
   }
 
   export class WebsocketStream extends EventEmitter {

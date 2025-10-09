@@ -4,6 +4,7 @@ import { AnalyzerService } from "./services/analyzer/AnalyzerService";
 import { CacheService } from "./services/CacheService";
 import { BinanceApiService } from "./services/collector/BinanceApiService";
 import { BinanceWebSocketService } from "./services/collector/BinanceWebSocketService";
+import { DashboardService } from "./services/dashboard/DashboardService";
 
 async function main() {
   console.log("Starting the trading application...");
@@ -13,6 +14,7 @@ async function main() {
   const apiService = new BinanceApiService();
   const webSocketService = new BinanceWebSocketService(cacheService);
   const analyzerService = new AnalyzerService();
+  const dashboardService = new DashboardService();
 
   // 2. Récupération des données historiques et initialisation du cache
   try {
@@ -37,7 +39,7 @@ async function main() {
   });
 
   // 4. Écoute des mises à jour du cache
-  webSocketService.on("kline:updated", ({ interval, kline }) => {
+  webSocketService.on("kline:updated", async ({ interval, kline }) => {
     console.log(
       `Cache updated for ${interval}. New kline close price: ${kline.close}`
     );
@@ -46,16 +48,26 @@ async function main() {
       const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
 
       if (klines1m) {
-        // 3. Appeler le service d'analyse avec les données du cache
         const analysis = analyzerService.analyze(klines1m);
 
         if (analysis) {
-          // 4. AFFICHER LE RÉSULTAT !
-          console.log("========================================");
-          console.log("📊 New Analysis Result:");
-          console.log(JSON.stringify(analysis, null, 2));
+          try {
+            // 4. Récupérer le contexte du dashboard AVANT de décider
+            const dashboardContext = await dashboardService.getTradingContext();
 
-          // C'EST ICI QUE VOUS ENVERREZ `analysis` AU MODULE `CERVEAU`
+            console.log("========================================");
+            console.log("📊 New Analysis Result:");
+            console.log(JSON.stringify(analysis, null, 2));
+            console.log("🛡️ New Dashboard Context:");
+            console.log(JSON.stringify(dashboardContext, null, 2));
+
+            // C'EST ICI QUE VOUS ENVERREZ `analysis` ET `dashboardContext` AU MODULE `CERVEAU`
+          } catch (error) {
+            console.error(
+              "Could not get dashboard context. Skipping decision cycle.",
+              error
+            );
+          }
         }
       }
     }

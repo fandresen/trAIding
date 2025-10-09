@@ -1,5 +1,5 @@
 // src/services/BinanceApiService.ts
-import { Spot } from '@binance/connector'; // This will now work correctly!
+import { UMFutures } from '@binance/connector';
 import { config } from '../../config';
 import { Kline } from '../../types/kline';
 
@@ -7,11 +7,11 @@ import { Kline } from '../../types/kline';
  * Service to interact with the Binance REST API.
  */
 export class BinanceApiService {
-  private client: Spot;
+  private client: UMFutures;
 
   constructor() {
     // No API keys are needed for the klines endpoint.
-    this.client = new Spot('', '', { baseURL: config.API_URL });
+    this.client = new UMFutures('', '', { baseURL: config.API_URL });
   }
 
   /**
