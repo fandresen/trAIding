@@ -1,17 +1,20 @@
-// src/services/BinanceApiService.ts
-import { UMFutures } from '@binance/connector/src/index'; 
-import { config } from '../../config';
-import { Kline } from '../../types/kline';
+// src/services/collector/BinanceApiService.ts
+import { USDMClient, Kline as BinanceKline, KlineInterval } from "binance";
+import { config } from "../../config";
+import { Kline } from "../../types/kline";
 
 /**
  * Service to interact with the Binance REST API.
  */
 export class BinanceApiService {
-  private client: UMFutures;
+  private client: USDMClient;
 
   constructor() {
-    // No API keys are needed for the klines endpoint.
-    this.client = new UMFutures('', '', { baseURL: config.API_URL });
+    // Les clés API ne sont pas nécessaires pour l'endpoint klines public.
+    this.client = new USDMClient({
+      // api_key: config.API_KEY,  // Décommenter si des appels privés sont nécessaires
+      // api_secret: config.API_SECRET, // Décommenter si des appels privés sont nécessaires
+    });
   }
 
   /**
@@ -23,17 +26,21 @@ export class BinanceApiService {
    */
   public async getHistoricalKlines(
     symbol: string,
-    interval: string,
+    interval: KlineInterval,
     limit: number
   ): Promise<Kline[]> {
     console.log(
       `Fetching historical ${limit} klines for ${symbol} on ${interval} interval...`
     );
     try {
-      const { data } = await this.client.klines(symbol, interval, { limit });
+      const klinesData: BinanceKline[] = await this.client.getKlines({
+        symbol,
+        interval,
+        limit,
+      });
 
       // Map the API response to our clean Kline interface
-      const klines: Kline[] = data.map((k: any[]) => ({
+      const klines: Kline[] = klinesData.map((k: any[]) => ({
         openTime: k[0],
         open: k[1],
         high: k[2],

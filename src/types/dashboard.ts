@@ -25,6 +25,15 @@ export interface RiskRules {
   dailyLossLimit: number;
 }
 
+export interface OpenPosition {
+  symbol: string;
+  positionAmt: string; // Doit être une chaîne de caractères
+  entryPrice: string;
+  markPrice: string;
+  unRealizedProfit: string;
+  liquidationPrice: string;
+}
+
 export interface Trade {
   id: string; // ex: orderId de Binance
   symbol: string;
