@@ -1,5 +1,5 @@
 // src/services/dashboard/DashboardService.ts
-import { UMFutures } from "@binance/connector";
+import BinanceConnector = require('@binance/connector');
 import { config } from "../../config";
 import { Balance, DashboardContext } from "../../types/dashboard";
 import { TradeHistoryService } from "../history/TradeHistoryService"; // Import
@@ -8,13 +8,13 @@ import { TradeHistoryService } from "../history/TradeHistoryService"; // Import
  * Service to fetch account information and apply risk management rules.
  */
 export class DashboardService {
-  private client: UMFutures;
+  private client: any;
   private tradeHistoryService: TradeHistoryService; // Injection de dépendance
 
   constructor() {
     const options = { baseURL: config.API_URL, timestamp: Date.now() };
 
-    this.client = new UMFutures(config.API_KEY, config.API_SECRET, options);
+    this.client = new BinanceConnector.UMFutures(config.API_KEY, config.API_SECRET, options);
     this.tradeHistoryService = new TradeHistoryService();
   }
 

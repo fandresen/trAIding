@@ -1,5 +1,5 @@
 // src/services/BinanceApiService.ts
-import { UMFutures } from '@binance/connector';
+import { UMFutures } from '@binance/connector/src/index'; 
 import { config } from '../../config';
 import { Kline } from '../../types/kline';
 
