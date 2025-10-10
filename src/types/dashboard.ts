@@ -1,9 +1,11 @@
 // src/types/dashboard.ts
 
+import { numberInString } from "binance";
+
 export interface AccountState {
-  equity: number; // Valeur totale du compte
-  availableBalance: number; // Solde disponible pour trader
-  unrealizedPnl: number; // Profit ou perte non réalisé des positions ouvertes
+  equity: number;
+  availableBalance: number;
+  unrealizedPnl: number;
 }
 
 export interface Balance {
@@ -13,47 +15,42 @@ export interface Balance {
 }
 
 export interface PerformanceMetrics {
-  realizedPnlDaily: number; // Profit ou perte réalisé aujourd'hui
-  tradeCountDaily: number; // Nombre de trades aujourd'hui
+  realizedPnlDaily: number;
+  tradeCountDaily: number;
 }
 
 export interface RiskRules {
-  isTradingAllowed: boolean; // Le cerveau a-t-il le droit de trader ?
-  calculatedPositionSizeUsd: number; // Taille de la position en USD à ouvrir
-  // ... autres règles pour information
+  // isTradingAllowed: boolean; // <-- FIX: This property is now removed
+  calculatedPositionSizeUsd: number;
   dailyProfitTarget: number;
   dailyLossLimit: number;
 }
 
 export interface OpenPosition {
   symbol: string;
-  positionAmt: string; // Doit être une chaîne de caractères
-  entryPrice: string;
-  markPrice: string;
-  unRealizedProfit: string;
-  liquidationPrice: string;
+  positionAmt: numberInString; // Must be a string
+  entryPrice: numberInString;
+  markPrice: numberInString;
+  unRealizedProfit: numberInString;
+  liquidationPrice: numberInString;
 }
 
 export interface Trade {
-  id: string; // ex: orderId de Binance
+  id: string;
   symbol: string;
   side: "BUY" | "SELL";
   entryPrice: number;
   exitPrice: number;
-  size: number; // en USD
-  pnl: number; // Profit ou perte du trade
+  size: number;
+  pnl: number;
   timestamp: number;
 }
 
-// L'objet final que le Dashboard envoie au Cerveau
 export interface DashboardContext {
   accountState: AccountState;
   performanceMetrics: PerformanceMetrics;
   activeContext: {
-    // Pour l'instant, nous laissons les positions ouvertes vides,
-    // car le suivi spot est plus complexe que sur les futures.
-    // On se concentre d'abord sur l'état global.
-    openPositions: any[];
+    openPositions: OpenPosition[];
     riskRules: RiskRules;
   };
 }

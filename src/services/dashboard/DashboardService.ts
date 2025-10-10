@@ -3,14 +3,18 @@
 import {
   USDMClient,
   FuturesAccountAsset,
-  FuturesAccountPosition,
-} from 'binance';
+  FuturesPositionV3, // Import the specific type for clarity
+} from "binance";
 import { config } from "../../config";
-import { DashboardContext, OpenPosition } from "../../types/dashboard";
+import {
+  DashboardContext,
+  OpenPosition,
+  RiskRules,
+} from "../../types/dashboard";
 import { TradeHistoryService } from "../history/TradeHistoryService";
 
 /**
- * Service pour récupérer les informations du compte et appliquer les règles de gestion des risques.
+ * Service to retrieve account information.
  */
 export class DashboardService {
   private client: USDMClient;
@@ -18,88 +22,80 @@ export class DashboardService {
 
   constructor() {
     this.client = new USDMClient({
-        api_key: config.API_KEY,
-        api_secret: config.API_SECRET,
+      api_key: config.API_KEY,
+      api_secret: config.API_SECRET,
     });
     this.tradeHistoryService = new TradeHistoryService();
   }
 
   public async getTradingContext(): Promise<DashboardContext> {
     try {
-      // 1. Récupérer les informations du compte et le risque des positions en parallèle
-      const [accountInfo, positionRisk] = await Promise.all([
-        this.client.getAccountInformationV3(),
-        this.client.getPositionsV3({ symbol: config.SYMBOL }), 
-      ]);
-
-      // 2. Extraire l'asset USDT pour le solde
-      const usdtAsset = accountInfo.assets.find(
-        (a: FuturesAccountAsset) => a.asset === 'USDT'
-      );
-
-      // Correction de type : s'assurer que les valeurs sont des chaînes avant parseFloat
-      const equity = parseFloat(String(usdtAsset?.walletBalance || '0'));
-      const availableBalance = parseFloat(String(usdtAsset?.availableBalance || '0'));
-      const unrealizedPnl = parseFloat(String(usdtAsset?.unrealizedProfit || '0'));
-
-      // 3. Filtrer et mapper les positions ouvertes
-      // On utilise les données de 'positionRisk' qui sont plus complètes
-      const openPositions: OpenPosition[] = positionRisk
-        .filter((p:any) => parseFloat(p.positionAmt) !== 0)
-        .map((p:any) => ({
-            symbol: p.symbol,
-            positionAmt: p.positionAmt, // C'est déjà une string
-            entryPrice: p.entryPrice,
-            markPrice: p.markPrice,
-            unRealizedProfit: p.unRealizedProfit,
-            liquidationPrice: p.liquidationPrice,
-        }));
-
-      // 4. Récupérer l'historique des trades du jour
-      const todaysTrades = await this.tradeHistoryService.getTodaysTrades();
-
-      // 5. Calculer les performances
-      const realizedPnlDaily = todaysTrades.reduce((sum, trade) => sum + trade.pnl, 0);
-      const tradeCountDaily = todaysTrades.length;
-
-      // 6. Appliquer les règles de risque
-      let isTradingAllowed = true;
+      // Correctly define the variable 'rules' by destructuring it from config
       const { RISK_MANAGEMENT: rules } = config;
 
-      if (realizedPnlDaily < -(equity * (rules.DAILY_LOSS_LIMIT_PERCENT / 100))) {
-        isTradingAllowed = false;
-        console.warn(`[RISK] Limite de perte journalière atteinte. Trading désactivé.`);
-      }
-      if (realizedPnlDaily > equity * (rules.DAILY_PROFIT_TARGET_PERCENT / 100)) {
-        isTradingAllowed = false;
-        console.log(`[RISK] Objectif de profit journalier atteint. Trading désactivé.`);
-      }
+      const [accountInfo, positionRisk] = await Promise.all([
+        this.client.getAccountInformationV3(),
+        this.client.getPositionsV3({ symbol: config.SYMBOL }),
+      ]);
 
-      // 7. Calculer la taille de la position
-      const stopLossPercent = rules.MAX_RISK_PER_TRADE_PERCENT / rules.RISK_REWARD_RATIO;
-      let calculatedPositionSizeUsd = 0;
-      if (isTradingAllowed) {
-        calculatedPositionSizeUsd = (equity * (rules.MAX_RISK_PER_TRADE_PERCENT / 100)) / (stopLossPercent / 100);
-      }
+      const usdtAsset = accountInfo.assets.find(
+        (a: FuturesAccountAsset) => a.asset === "USDT"
+      );
 
-      // 8. Construire l'objet de contexte final
+      const equity = parseFloat(String(usdtAsset?.walletBalance || "0"));
+      const availableBalance = parseFloat(
+        String(usdtAsset?.availableBalance || "0")
+      );
+      const unrealizedPnl = parseFloat(
+        String(usdtAsset?.unrealizedProfit || "0")
+      );
+
+      // Correctly map the position data, ensuring all types match
+      const openPositions: OpenPosition[] = positionRisk
+        .filter(
+          (p: FuturesPositionV3) => parseFloat(String(p.positionAmt)) !== 0
+        )
+        .map((p: FuturesPositionV3) => ({
+          symbol: p.symbol,
+          positionAmt: p.positionAmt, // FIX: Explicitly convert to string
+          entryPrice: p.entryPrice,
+          markPrice: p.markPrice,
+          unRealizedProfit: p.unRealizedProfit,
+          liquidationPrice: p.liquidationPrice,
+        }));
+
+      const todaysTrades = await this.tradeHistoryService.getTodaysTrades();
+      const realizedPnlDaily = todaysTrades.reduce(
+        (sum, trade) => sum + trade.pnl,
+        0
+      );
+      const tradeCountDaily = todaysTrades.length;
+
+      const stopLossPercent =
+        rules.MAX_RISK_PER_TRADE_PERCENT / rules.RISK_REWARD_RATIO;
+      const calculatedPositionSizeUsd =
+        (equity * (rules.MAX_RISK_PER_TRADE_PERCENT / 100)) /
+        (stopLossPercent / 100);
+
+      // This object now correctly matches the updated RiskRules interface
+      const riskRules: RiskRules = {
+        calculatedPositionSizeUsd,
+        dailyLossLimit: rules.DAILY_LOSS_LIMIT_PERCENT,
+        dailyProfitTarget: rules.DAILY_PROFIT_TARGET_PERCENT,
+      };
+
       const context: DashboardContext = {
         accountState: { equity, availableBalance, unrealizedPnl },
         performanceMetrics: { realizedPnlDaily, tradeCountDaily },
         activeContext: {
           openPositions,
-          riskRules: {
-            isTradingAllowed,
-            calculatedPositionSizeUsd,
-            dailyLossLimit: rules.DAILY_LOSS_LIMIT_PERCENT,
-            dailyProfitTarget: rules.DAILY_PROFIT_TARGET_PERCENT,
-          },
+          riskRules,
         },
       };
 
       return context;
     } catch (error) {
-      console.error("Erreur lors de la récupération du contexte du dashboard:", error);
+      console.error("Error retrieving dashboard context:", error);
       throw error;
     }
   }

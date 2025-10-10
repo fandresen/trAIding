@@ -6,6 +6,9 @@ import { CacheService } from "./services/CacheService";
 import { BinanceApiService } from "./services/collector/BinanceApiService";
 import { BinanceWebSocketService } from "./services/collector/BinanceWebSocketService";
 import { DashboardService } from "./services/dashboard/DashboardService";
+import { BrokerService } from "./services/broker/BrokerService";
+import { RiskManagementService } from "./services/risk/RiskManagementService";
+import { TradeHistoryService } from "./services/history/TradeHistoryService";
 
 async function main() {
   console.log("Starting the trading application...");
@@ -16,6 +19,9 @@ async function main() {
   const webSocketService = new BinanceWebSocketService(cacheService);
   const analyzerService = new AnalyzerService();
   const dashboardService = new DashboardService();
+  const brokerService = new BrokerService();
+  const riskService = new RiskManagementService(); 
+  const tradeHistoryService = new TradeHistoryService();
 
   // 2. Récupération des données historiques et initialisation du cache
   try {
@@ -41,45 +47,55 @@ async function main() {
 
   // 4. Écoute des mises à jour du cache
   webSocketService.on("kline:updated", async ({ interval, kline }) => {
-    console.log(
-      `Cache updated for ${interval}. New kline close price: ${kline.close}`
-    );
-    // Ici, vous pouvez déclencher votre logique de trading, etc.
-    if (interval === config.INTERVALS.ONE_MINUTE) {
-      const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
-      const klines15m = cacheService.getCache(
-        config.INTERVALS.FIFTEEN_MINUTES!
+    if (interval !== config.INTERVALS.ONE_MINUTE) return;
+
+    const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
+    if (!klines1m || klines1m.length < 50) return;
+
+    const analysis = analyzerService.analyze(klines1m);
+    if (!analysis) return;
+
+    try {
+      // Étape A: Obtenir l'état actuel
+      const dashboardContext = await dashboardService.getTradingContext();
+      const todaysTrades = await tradeHistoryService.getTodaysTrades();
+
+      // Étape B: Vérifier les règles de risque AVANT TOUT
+      const riskCheck = riskService.check(
+        dashboardContext,
+        analysis,
+        todaysTrades
+      );
+      if (!riskCheck.isTradingAllowed) {
+        console.warn(`[RISK] Trading stopped. Reason: ${riskCheck.reason}`);
+        // Ici, on pourrait ajouter une logique pour fermer les positions ouvertes si nécessaire
+        return;
+      }
+
+      console.log(
+        "[RISK] All risk checks passed. Proceeding to strategy analysis."
       );
 
-      if (klines1m) {
-        const analysis = analyzerService.analyze(klines1m);
+      // Étape C: Consulter le 'Cerveau' pour une décision stratégique
+      const brainResponse = await axios.post(config.BRAIN_URL, {
+        indicator: analysis,
+      });
+      const decision: { decision: "BUY" | "SELL" | "WAIT" } =
+        brainResponse.data;
 
-        if (analysis) {
-          try {
-            // 4. Récupérer le contexte du dashboard AVANT de décider
-            const dashboardContext = await dashboardService.getTradingContext();
-
-            axios.post(
-              "http://localhost:5678/webhook-test/ffa7477e-64fb-487c-b35b-414a207db077",
-              {
-                data: {
-                  "1m": klines1m,
-                  "15m": klines15m,
-                  indicator: analysis,
-                  acount_data_trading_rule: dashboardContext,
-                },
-              }
-            );
-
-            // C'EST ICI QUE VOUS ENVERREZ `analysis` ET `dashboardContext` AU MODULE `CERVEAU`
-          } catch (error) {
-            console.error(
-              "Could not get dashboard context. Skipping decision cycle.",
-              error
-            );
-          }
-        }
+      // Étape D: Exécuter la décision si elle est validée
+      if (decision.decision === "BUY" || decision.decision === "SELL") {
+        await brokerService.executeTrade(
+          decision.decision,
+          analysis,
+          dashboardContext,
+          kline
+        );
+      } else {
+        console.log("[BRAIN] Decision: WAIT. No trade executed.");
       }
+    } catch (error) {
+      console.error("Error during the decision cycle:", error);
     }
   });
 
