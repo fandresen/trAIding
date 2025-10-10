@@ -20,7 +20,7 @@ async function main() {
   const analyzerService = new AnalyzerService();
   const dashboardService = new DashboardService();
   const brokerService = new BrokerService();
-  const riskService = new RiskManagementService(); 
+  const riskService = new RiskManagementService();
   const tradeHistoryService = new TradeHistoryService();
 
   // 2. Récupération des données historiques et initialisation du cache
@@ -50,6 +50,7 @@ async function main() {
     if (interval !== config.INTERVALS.ONE_MINUTE) return;
 
     const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
+    const klines15m = cacheService.getCache(config.INTERVALS.FIFTEEN_MINUTES!);
     if (!klines1m || klines1m.length < 50) return;
 
     const analysis = analyzerService.analyze(klines1m);
@@ -78,7 +79,12 @@ async function main() {
 
       // Étape C: Consulter le 'Cerveau' pour une décision stratégique
       const brainResponse = await axios.post(config.BRAIN_URL, {
-        indicator: analysis,
+        data: {
+          "1m": klines1m,
+          "15m": klines15m,
+          indicator: analysis,
+          acount_data_trading_rule: dashboardContext,
+        },
       });
       const decision: { decision: "BUY" | "SELL" | "WAIT" } =
         brainResponse.data;

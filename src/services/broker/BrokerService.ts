@@ -24,10 +24,6 @@ export class BrokerService {
 
   /**
    * Calculates order parameters and executes the trade.
-   * @param decision The strategic decision from the AI ("BUY" or "SELL").
-   * @param analysis The technical analysis result.
-   * @param context The current dashboard context.
-   * @param lastKline The last kline for entry price.
    */
   public async executeTrade(
     decision: "BUY" | "SELL",
@@ -37,6 +33,11 @@ export class BrokerService {
   ): Promise<void> {
     const { orderParams, stopLossPrice, takeProfitPrice } =
       this.calculateOrderParams(decision, analysis, context, lastKline);
+
+    if (orderParams.quantity! <= 0) {
+      console.log("[BROKER] Calculated quantity is too small. Skipping order.");
+      return;
+    }
 
     console.log(
       `[BROKER] Calculated Order Params:`,
@@ -53,9 +54,9 @@ export class BrokerService {
         symbol: mainOrder.symbol,
         side: decision,
         entryPrice: parseFloat(String(mainOrder.avgPrice)),
-        exitPrice: 0, // Not yet exited
+        exitPrice: 0,
         size: parseFloat(String(mainOrder.origQty)),
-        pnl: 0, // Not yet realized
+        pnl: 0,
         timestamp: mainOrder.updateTime,
       };
       await this.tradeHistoryService.addTrade(trade);
@@ -67,7 +68,7 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "TAKE_PROFIT_MARKET",
-        stopPrice: takeProfitPrice,
+        stopPrice: parseFloat(takeProfitPrice.toFixed(1)),
         quantity: orderParams.quantity!,
         reduceOnly: "true",
       };
@@ -81,9 +82,9 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "STOP_MARKET",
-        stopPrice: stopLossPrice,
+        stopPrice: parseFloat(stopLossPrice.toFixed(1)),
         quantity: orderParams.quantity!,
-        reduceOnly: "false",
+        reduceOnly: "true",
       };
       const stopLossOrder = await this.client.submitNewOrder(stopLossParams);
       console.log("[BROKER] Stop Loss order placed:", stopLossOrder);
@@ -126,13 +127,13 @@ export class BrokerService {
       takeProfitPrice = entryPrice - stopLossDistance * rules.RISK_REWARD_RATIO;
     }
 
-    const quantityInBtc = positionSizeUSD / entryPrice;
+    const quantityInXrp = positionSizeUSD / entryPrice;
 
     const orderParams: NewFuturesOrderParams = {
       symbol: config.SYMBOL,
       side: decision,
       type: "MARKET",
-      quantity: parseFloat(quantityInBtc.toFixed(4)), // Keep precision but convert back to number
+      quantity: parseFloat(quantityInXrp.toFixed(1)), // FIX: Quantity precision for XRP is 1
     };
 
     return { orderParams, stopLossPrice, takeProfitPrice };
