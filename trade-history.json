@@ -1,0 +1,52 @@
+[
+  {
+    "id": "124652171126",
+    "symbol": "XRPUSDT",
+    "side": "SELL",
+    "entryPrice": 0,
+    "exitPrice": 0,
+    "size": 7.8,
+    "pnl": 0,
+    "timestamp": 1760105900842
+  },
+  {
+    "id": "124652270934",
+    "symbol": "XRPUSDT",
+    "side": "SELL",
+    "entryPrice": 0,
+    "exitPrice": 0,
+    "size": 7.8,
+    "pnl": 0,
+    "timestamp": 1760105957550
+  },
+  {
+    "id": "124652844601",
+    "symbol": "XRPUSDT",
+    "side": "SELL",
+    "entryPrice": 0,
+    "exitPrice": 0,
+    "size": 7.8,
+    "pnl": 0,
+    "timestamp": 1760106261185
+  },
+  {
+    "id": "124652935563",
+    "symbol": "XRPUSDT",
+    "side": "SELL",
+    "entryPrice": 0,
+    "exitPrice": 0,
+    "size": 7.8,
+    "pnl": 0,
+    "timestamp": 1760106315206
+  },
+  {
+    "id": "124653340058",
+    "symbol": "XRPUSDT",
+    "side": "SELL",
+    "entryPrice": 0,
+    "exitPrice": 0,
+    "size": 7.7,
+    "pnl": 0,
+    "timestamp": 1760106555948
+  }
+]

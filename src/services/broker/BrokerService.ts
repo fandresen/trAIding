@@ -63,14 +63,15 @@ export class BrokerService {
 
       const oppositeSide = decision === "BUY" ? "SELL" : "BUY";
 
-      // Place Take Profit Order
+      // Place Take Profit Order using a LIMIT order
       const takeProfitParams: NewFuturesOrderParams = {
         symbol: config.SYMBOL,
         side: oppositeSide,
-        type: "TAKE_PROFIT_MARKET",
-        stopPrice: parseFloat(takeProfitPrice.toFixed(1)),
+        type: "LIMIT",
+        price: parseFloat(takeProfitPrice.toFixed(4)),
         quantity: orderParams.quantity!,
         reduceOnly: "true",
+        timeInForce: "GTC",
       };
       const takeProfitOrder = await this.client.submitNewOrder(
         takeProfitParams
@@ -82,14 +83,14 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "STOP_MARKET",
-        stopPrice: parseFloat(stopLossPrice.toFixed(1)),
+        stopPrice: parseFloat(stopLossPrice.toFixed(4)),
         quantity: orderParams.quantity!,
         reduceOnly: "true",
       };
       const stopLossOrder = await this.client.submitNewOrder(stopLossParams);
       console.log("[BROKER] Stop Loss order placed:", stopLossOrder);
     } catch (error) {
-      console.error("[BROKER] Error placing order:", error);
+      console.error("[BROKER] Error placing subsequent SL/TP order:", error);
     }
   }
 
@@ -133,7 +134,7 @@ export class BrokerService {
       symbol: config.SYMBOL,
       side: decision,
       type: "MARKET",
-      quantity: parseFloat(quantityInXrp.toFixed(1)), // FIX: Quantity precision for XRP is 1
+      quantity: parseFloat(quantityInXrp.toFixed(1)), // Quantity precision for XRP is 1
     };
 
     return { orderParams, stopLossPrice, takeProfitPrice };

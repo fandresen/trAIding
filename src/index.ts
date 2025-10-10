@@ -89,6 +89,11 @@ async function main() {
       const decision: { decision: "BUY" | "SELL" | "WAIT" } =
         brainResponse.data;
 
+      if (dashboardContext.activeContext.openPositions.length > 0) {
+        console.log("[RISK] A position is already open. New trade ignored.");
+        return;
+      }
+
       // Étape D: Exécuter la décision si elle est validée
       if (decision.decision === "BUY" || decision.decision === "SELL") {
         await brokerService.executeTrade(
