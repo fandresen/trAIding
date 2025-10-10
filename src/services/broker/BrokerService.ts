@@ -1,23 +1,25 @@
 // src/services/broker/BrokerService.ts
 
-import { USDMClient } from "binance";
+import { NewFuturesOrderParams, USDMClient } from "binance";
 import { config } from "../../config";
 import { AnalysisResult } from "../../types/indicators";
-import { DashboardContext } from "../../types/dashboard";
-import { OrderParams } from "../../types/broker";
+import { DashboardContext, Trade } from "../../types/dashboard";
 import { Kline } from "../../types/kline";
+import { TradeHistoryService } from "../history/TradeHistoryService";
 
 /**
  * Service to calculate and execute trades with the broker (Binance).
  */
 export class BrokerService {
   private client: USDMClient;
+  private tradeHistoryService: TradeHistoryService;
 
   constructor() {
     this.client = new USDMClient({
       api_key: config.API_KEY,
       api_secret: config.API_SECRET,
     });
+    this.tradeHistoryService = new TradeHistoryService();
   }
 
   /**
@@ -33,34 +35,58 @@ export class BrokerService {
     context: DashboardContext,
     lastKline: Kline
   ): Promise<void> {
-    // 2. Calcul des paramètres de l'ordre
-    const orderParams = this.calculateOrderParams(
-      decision,
-      analysis,
-      context,
-      lastKline
-    );
+    const { orderParams, stopLossPrice, takeProfitPrice } =
+      this.calculateOrderParams(decision, analysis, context, lastKline);
+
     console.log(
       `[BROKER] Calculated Order Params:`,
       JSON.stringify(orderParams, null, 2)
     );
 
-    // 3. Exécution de l'ordre
     try {
-      // Note : La méthode exacte peut varier. .submitNewOrder() est un exemple.
-      // Consultez la documentation 'binance' pour la création d'ordres Futures (limit, SL, TP).
-      // Souvent, il faut créer l'ordre 'LIMIT' puis deux ordres 'STOP_MARKET' séparés pour le SL/TP.
-      // Pour la simplicité de l'exemple, nous simulons l'envoi.
+      // Execute Main Order
+      const mainOrder = await this.client.submitNewOrder(orderParams);
+      console.log("[BROKER] Main order successfully placed:", mainOrder);
 
-      console.log(
-        `[BROKER] Executing ${orderParams.side} order for ${orderParams.quantity} ${orderParams.symbol}.`
+      const trade: Trade = {
+        id: mainOrder.orderId.toString(),
+        symbol: mainOrder.symbol,
+        side: decision,
+        entryPrice: parseFloat(String(mainOrder.avgPrice)),
+        exitPrice: 0, // Not yet exited
+        size: parseFloat(String(mainOrder.origQty)),
+        pnl: 0, // Not yet realized
+        timestamp: mainOrder.updateTime,
+      };
+      await this.tradeHistoryService.addTrade(trade);
+
+      const oppositeSide = decision === "BUY" ? "SELL" : "BUY";
+
+      // Place Take Profit Order
+      const takeProfitParams: NewFuturesOrderParams = {
+        symbol: config.SYMBOL,
+        side: oppositeSide,
+        type: "TAKE_PROFIT_MARKET",
+        stopPrice: takeProfitPrice,
+        quantity: orderParams.quantity!,
+        reduceOnly: "true",
+      };
+      const takeProfitOrder = await this.client.submitNewOrder(
+        takeProfitParams
       );
+      console.log("[BROKER] Take Profit order placed:", takeProfitOrder);
 
-      // const result = await this.client.submitNewOrder(orderParams);
-      // console.log('[BROKER] Order successfully placed:', result);
-
-      // Ici, vous ajouteriez aussi la logique pour enregistrer le trade dans l'historique
-      // via le TradeHistoryService.
+      // Place Stop Loss Order
+      const stopLossParams: NewFuturesOrderParams = {
+        symbol: config.SYMBOL,
+        side: oppositeSide,
+        type: "STOP_MARKET",
+        stopPrice: stopLossPrice,
+        quantity: orderParams.quantity!,
+        reduceOnly: "false",
+      };
+      const stopLossOrder = await this.client.submitNewOrder(stopLossParams);
+      console.log("[BROKER] Stop Loss order placed:", stopLossOrder);
     } catch (error) {
       console.error("[BROKER] Error placing order:", error);
     }
@@ -74,7 +100,11 @@ export class BrokerService {
     analysis: AnalysisResult,
     context: DashboardContext,
     lastKline: Kline
-  ): OrderParams {
+  ): {
+    orderParams: NewFuturesOrderParams;
+    stopLossPrice: number;
+    takeProfitPrice: number;
+  } {
     const { RISK_MANAGEMENT: rules } = config;
 
     const positionSizeUSD =
@@ -82,8 +112,6 @@ export class BrokerService {
     const entryPrice = parseFloat(lastKline.close);
     const atrValue = analysis.atr.value_14;
 
-    // Calcul dynamique du Stop Loss basé sur l'ATR
-    // Le multiplicateur (ex: 1.5) peut être ajusté ou mis dans la config
     const stopLossDistance = atrValue * 1.5;
 
     let stopLossPrice: number;
@@ -98,17 +126,15 @@ export class BrokerService {
       takeProfitPrice = entryPrice - stopLossDistance * rules.RISK_REWARD_RATIO;
     }
 
-    // Conversion de la taille en USD vers l'unité de l'actif (BTC)
     const quantityInBtc = positionSizeUSD / entryPrice;
 
-    return {
+    const orderParams: NewFuturesOrderParams = {
       symbol: config.SYMBOL,
       side: decision,
-      type: "LIMIT", // ou "MARKET" selon la stratégie
-      quantity: quantityInBtc.toFixed(4), // Adaptez la précision à BTC
-      price: entryPrice.toFixed(2),
-      stopLoss: stopLossPrice.toFixed(2),
-      takeProfit: takeProfitPrice.toFixed(2),
+      type: "MARKET",
+      quantity: parseFloat(quantityInBtc.toFixed(4)), // Keep precision but convert back to number
     };
+
+    return { orderParams, stopLossPrice, takeProfitPrice };
   }
 }
