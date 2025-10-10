@@ -1,4 +1,5 @@
 // src/index.ts
+import axios from "axios";
 import { config } from "./config";
 import { AnalyzerService } from "./services/analyzer/AnalyzerService";
 import { CacheService } from "./services/CacheService";
@@ -46,6 +47,9 @@ async function main() {
     // Ici, vous pouvez déclencher votre logique de trading, etc.
     if (interval === config.INTERVALS.ONE_MINUTE) {
       const klines1m = cacheService.getCache(config.INTERVALS.ONE_MINUTE!);
+      const klines15m = cacheService.getCache(
+        config.INTERVALS.FIFTEEN_MINUTES!
+      );
 
       if (klines1m) {
         const analysis = analyzerService.analyze(klines1m);
@@ -55,11 +59,17 @@ async function main() {
             // 4. Récupérer le contexte du dashboard AVANT de décider
             const dashboardContext = await dashboardService.getTradingContext();
 
-            console.log("========================================");
-            console.log("📊 New Analysis Result:");
-            console.log(JSON.stringify(analysis, null, 2));
-            console.log("🛡️ New Dashboard Context:");
-            console.log(JSON.stringify(dashboardContext, null, 2));
+            axios.post(
+              "http://localhost:5678/webhook-test/ffa7477e-64fb-487c-b35b-414a207db077",
+              {
+                data: {
+                  "1m": klines1m,
+                  "15m": klines15m,
+                  indicator: analysis,
+                  acount_data_trading_rule: dashboardContext,
+                },
+              }
+            );
 
             // C'EST ICI QUE VOUS ENVERREZ `analysis` ET `dashboardContext` AU MODULE `CERVEAU`
           } catch (error) {

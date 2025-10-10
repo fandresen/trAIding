@@ -13,13 +13,14 @@ export const config: {
   CACHE_LIMITS: { [key in Interval]: number };
   API_KEY: string;
   API_SECRET: string;
+  BRAIN_URL: string;
   RISK_MANAGEMENT: {
     MAX_RISK_PER_TRADE_PERCENT: number;
     DAILY_PROFIT_TARGET_PERCENT: number;
     DAILY_LOSS_LIMIT_PERCENT: number;
     MAX_DRAWDOWN_PERCENT: number;
     RISK_REWARD_RATIO: number;
-  },
+  };
 } = {
   API_URL: "https://fapi.binance.com",
   WEBSOCKET_URL: "wss://fstream.binance.com/ws",
@@ -41,4 +42,5 @@ export const config: {
     MAX_DRAWDOWN_PERCENT: 10.0, // Drawdown maximal du compte de 10%
     RISK_REWARD_RATIO: 2.0, // Viser un gain 2x plus grand que la perte (ex: TP à 1%, SL à 0.5%)
   },
+  BRAIN_URL: process.env.BRAIN_URL!,
 };
