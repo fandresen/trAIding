@@ -5,12 +5,17 @@ import { DashboardContext } from "../../types/dashboard";
 import { RiskCheckResult } from "../../types/risk";
 import { AnalysisResult } from "../../types/indicators";
 import { Trade } from "../../types/dashboard";
+import { PushoverNotificationService } from "../notification/PushOverNotificationService";
 
 /**
  * Service to centralize all risk management rules.
  * Determines if the bot is allowed to trade.
  */
 export class RiskManagementService {
+  private pushoverService: PushoverNotificationService;
+  private profitTargetNotified = false;
+  private lossLimitNotified = false;
+  private maxTradesNotified = false;
   /**
    * The main method to check all risk rules.
    * @param context The current state of the account and performance.
@@ -18,6 +23,10 @@ export class RiskManagementService {
    * @param tradeHistory The complete list of today's trades.
    * @returns A RiskCheckResult object.
    */
+  constructor() {
+    this.pushoverService = new PushoverNotificationService();
+  }
+
   public check(
     context: DashboardContext,
     analysis: AnalysisResult,
@@ -31,6 +40,16 @@ export class RiskManagementService {
     // Règle 1: Limite de Perte Journalière
     const dailyLossLimit = -(equity * (rules.DAILY_LOSS_LIMIT_PERCENT / 100));
     if (realizedPnlDaily < dailyLossLimit) {
+      if (!this.lossLimitNotified) {
+        this.pushoverService.sendNotification(
+          `Limite de perte de ${dailyLossLimit.toFixed(
+            2
+          )} USD atteinte. PnL réalisé: ${realizedPnlDaily.toFixed(2)} USD.`,
+          "Daily Loss Limit Reached",
+          1
+        );
+        this.lossLimitNotified = true;
+      }
       return {
         isTradingAllowed: false,
         reason: `Daily loss limit reached (${realizedPnlDaily.toFixed(
@@ -43,6 +62,16 @@ export class RiskManagementService {
     const dailyProfitTarget =
       equity * (rules.DAILY_PROFIT_TARGET_PERCENT / 100);
     if (realizedPnlDaily >= dailyProfitTarget) {
+      if (!this.profitTargetNotified) {
+        this.pushoverService.sendNotification(
+          `Objectif de gain de ${dailyProfitTarget.toFixed(
+            2
+          )} USD atteint. PnL réalisé: ${realizedPnlDaily.toFixed(2)} USD.`,
+          "Daily Profit Target Reached",
+          1 // High Priority
+        );
+        this.profitTargetNotified = true;
+      }
       return {
         isTradingAllowed: false,
         reason: `Daily profit target reached (${realizedPnlDaily.toFixed(

@@ -12,6 +12,7 @@ import {
   RiskRules,
 } from "../../types/dashboard";
 import { TradeHistoryService } from "../history/TradeHistoryService";
+import { CapitalHistoryService } from "../history/CapitalHistoryService";
 
 /**
  * Service to retrieve account information.
@@ -19,6 +20,7 @@ import { TradeHistoryService } from "../history/TradeHistoryService";
 export class DashboardService {
   private client: USDMClient;
   private tradeHistoryService: TradeHistoryService;
+  private capitalHistoryService: CapitalHistoryService;
 
   constructor() {
     this.client = new USDMClient({
@@ -26,6 +28,7 @@ export class DashboardService {
       api_secret: config.API_SECRET,
     });
     this.tradeHistoryService = new TradeHistoryService();
+    this.capitalHistoryService = new CapitalHistoryService();
   }
 
   public async getTradingContext(): Promise<DashboardContext> {
@@ -92,6 +95,13 @@ export class DashboardService {
           riskRules,
         },
       };
+
+      await this.capitalHistoryService.addEntry({
+        timestamp: Date.now(),
+        equity: context.accountState.equity,
+        unrealizedPnl: context.accountState.unrealizedPnl,
+        realizedPnlDaily: context.performanceMetrics.realizedPnlDaily,
+      });
 
       return context;
     } catch (error) {

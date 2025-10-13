@@ -14,6 +14,9 @@ export const config: {
   API_KEY: string;
   API_SECRET: string;
   BRAIN_URL: string;
+  SLACK_WEBHOOK_URL: string;
+  PUSHOVER_USER_KEY: string;
+  PUSHOVER_API_TOKEN: string;
   RISK_MANAGEMENT: {
     MAX_RISK_PER_TRADE_PERCENT: number;
     DAILY_PROFIT_TARGET_PERCENT: number;
@@ -47,4 +50,7 @@ export const config: {
     ATR_VOLATILITY_THRESHOLD_MULTIPLIER: 4.0,
   },
   BRAIN_URL: process.env.BRAIN_URL!,
+  SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL!,
+  PUSHOVER_USER_KEY: process.env.PUSHOVER_USER_KEY!,
+  PUSHOVER_API_TOKEN: process.env.PUSHOVER_API_TOKEN!,
 };

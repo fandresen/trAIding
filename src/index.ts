@@ -9,6 +9,7 @@ import { DashboardService } from "./services/dashboard/DashboardService";
 import { BrokerService } from "./services/broker/BrokerService";
 import { RiskManagementService } from "./services/risk/RiskManagementService";
 import { TradeHistoryService } from "./services/history/TradeHistoryService";
+import { SlackNotificationService } from "./services/notification/SlackNotificationService";
 
 async function main() {
   console.log("Starting the trading application...");
@@ -22,6 +23,7 @@ async function main() {
   const brokerService = new BrokerService();
   const riskService = new RiskManagementService();
   const tradeHistoryService = new TradeHistoryService();
+  const slackService = new SlackNotificationService();
 
   // 2. Récupération des données historiques et initialisation du cache
   try {
@@ -37,6 +39,7 @@ async function main() {
     }
   } catch (error) {
     console.error("Failed to initialize klines from API:", error);
+    await slackService.sendError(error as Error, "Kline Initialization Failed");
     return; // Arrêter l'application si l'initialisation échoue
   }
 
@@ -107,6 +110,7 @@ async function main() {
       }
     } catch (error) {
       console.error("Error during the decision cycle:", error);
+      await slackService.sendError(error as Error, "Decision Cycle Failed");
     }
   });
 
@@ -121,7 +125,9 @@ async function main() {
   });
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("Unhandled error in main function:", error);
+  const slackService = new SlackNotificationService();
+  await slackService.sendError(error as Error, "Critical Application Failure");
   process.exit(1);
 });
