@@ -38,10 +38,10 @@ export const config: {
   API_KEY: process.env.API_KEY!,
   API_SECRET: process.env.API_SECRET_KEY!,
   RISK_MANAGEMENT: {
-    MAX_RISK_PER_TRADE_PERCENT: 5.0, // Risquer au maximum 1% du capital par trade
-    DAILY_PROFIT_TARGET_PERCENT: 10.0, // Objectif de gain journalier de 5%
+    MAX_RISK_PER_TRADE_PERCENT: 5.0, // Risquer au maximum 5% du capital par trade
+    DAILY_PROFIT_TARGET_PERCENT: 10.0, // Objectif de gain journalier de 10%
     DAILY_LOSS_LIMIT_PERCENT: 10.0, // Perte maximale journalière de 3%
-    MAX_DRAWDOWN_PERCENT: 15.0, // Drawdown maximal du compte de 10%
+    MAX_DRAWDOWN_PERCENT: 15.0, // Drawdown maximal du compte de 15%
     RISK_REWARD_RATIO: 2.0, // Viser un gain 2x plus grand que la perte (ex: TP à 1%, SL à 0.5%)
     MAX_TRADES_PER_DAY: 50,
     ATR_VOLATILITY_THRESHOLD_MULTIPLIER: 4.0,
