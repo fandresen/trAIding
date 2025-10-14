@@ -44,6 +44,11 @@ export interface Trade {
   size: number;
   pnl: number;
   timestamp: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  stopLossOrderId?: string;     
+  takeProfitOrderId?: string;   
+  isTrailingActive?: boolean;   
 }
 
 export interface DashboardContext {

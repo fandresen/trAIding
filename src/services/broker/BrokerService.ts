@@ -33,7 +33,7 @@ export class BrokerService {
     analysis: AnalysisResult,
     context: DashboardContext,
     lastKline: Kline
-  ): Promise<void> {
+  ): Promise<Trade|void> {
     const { orderParams, stopLossPrice, takeProfitPrice } =
       this.calculateOrderParams(decision, analysis, context, lastKline);
 
@@ -49,13 +49,15 @@ export class BrokerService {
 
     let mainOrder;
 
+    let trade: Trade;
+
     try {
       // Étape 1: Exécuter l'ordre principal (MARKET)
       mainOrder = await this.client.submitNewOrder(orderParams);
       console.log("[BROKER] Main order successfully placed:", mainOrder);
 
       // Enregistrer le trade immédiatement
-      const trade: Trade = {
+      trade = {
         id: mainOrder.orderId.toString(),
         symbol: mainOrder.symbol,
         side: decision,
@@ -64,7 +66,10 @@ export class BrokerService {
         size: parseFloat(String(mainOrder.origQty)),
         pnl: 0,
         timestamp: mainOrder.updateTime,
+        stopLossPrice: stopLossPrice, 
+        takeProfitPrice: takeProfitPrice
       };
+
       await this.tradeHistoryService.addTrade(trade);
     } catch (error) {
       console.error("[BROKER] CRITICAL: Failed to place main order:", error);
@@ -84,7 +89,7 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "LIMIT",
-        price: parseFloat(takeProfitPrice.toFixed(4)), // Précision à ajuster selon le symbole
+        price: parseFloat(takeProfitPrice.toFixed(4)), 
         quantity: quantity,
         reduceOnly: "true",
         timeInForce: "GTC",
@@ -94,7 +99,7 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "STOP_MARKET",
-        stopPrice: parseFloat(stopLossPrice.toFixed(4)), // Précision à ajuster
+        stopPrice: parseFloat(stopLossPrice.toFixed(4)), 
         quantity: quantity,
         reduceOnly: "true",
       };
@@ -122,6 +127,7 @@ export class BrokerService {
         decision
       );
     }
+    return trade;
   }
 
   private async emergencyClosePosition(
@@ -203,5 +209,58 @@ export class BrokerService {
     };
 
     return { orderParams, stopLossPrice, takeProfitPrice };
+  }
+
+  public async switchToTrailingStop(trade: Trade): Promise<void> {
+    try {
+      console.log(
+        `[BROKER] Attempting to switch to trailing stop for trade ${trade.id}...`
+      );
+
+      // Étape 1: Annuler les ordres Stop Loss et Take Profit existants
+      await Promise.all([
+        this.client.cancelOrder({
+          symbol: config.SYMBOL,
+          orderId: parseInt(trade.stopLossOrderId!),
+        }),
+        this.client.cancelOrder({
+          symbol: config.SYMBOL,
+          orderId: parseInt(trade.takeProfitOrderId!),
+        }),
+      ]);
+      console.log(
+        `[BROKER] Canceled original SL (${trade.stopLossOrderId}) and TP (${trade.takeProfitOrderId}).`
+      );
+
+      // Étape 2: Placer le nouvel ordre Trailing Stop
+      const trailingStopParams: NewFuturesOrderParams = {
+        symbol: config.SYMBOL,
+        side: trade.side === "BUY" ? "SELL" : "BUY",
+        type: "TRAILING_STOP_MARKET",
+        quantity: trade.size,
+        reduceOnly: "true",
+        callbackRate: 5, // 5% comme demandé
+      };
+      const newTrailingOrder = await this.client.submitNewOrder(
+        trailingStopParams
+      );
+      console.log(
+        `[BROKER] New Trailing Stop Loss placed. Order ID: ${newTrailingOrder.orderId}`
+      );
+
+      // Étape 3: Mettre à jour l'historique du trade
+      trade.isTrailingActive = true;
+      // Il vous faudra une méthode pour mettre à jour un trade existant
+      await this.tradeHistoryService.updateTrade(trade);
+    } catch (error) {
+      console.error(
+        `[BROKER] CRITICAL: Failed to switch to trailing stop for trade ${trade.id}.`,
+        error
+      );
+      await this.slackService.sendError(
+        error as Error,
+        `CRITICAL: Trailing Stop Switch Failed for trade ${trade.id}`
+      );
+    }
   }
 }

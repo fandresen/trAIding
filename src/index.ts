@@ -10,6 +10,8 @@ import { BrokerService } from "./services/broker/BrokerService";
 import { RiskManagementService } from "./services/risk/RiskManagementService";
 import { TradeHistoryService } from "./services/history/TradeHistoryService";
 import { SlackNotificationService } from "./services/notification/SlackNotificationService";
+import { PositionManagerService } from "./services/manager/PositionManagerService";
+import { Trade } from "./types/dashboard";
 
 async function main() {
   console.log("Starting the trading application...");
@@ -24,6 +26,10 @@ async function main() {
   const riskService = new RiskManagementService();
   const tradeHistoryService = new TradeHistoryService();
   const slackService = new SlackNotificationService();
+  const positionManagerService = new PositionManagerService(
+    brokerService,
+    tradeHistoryService
+  );
 
   // 2. Récupération des données historiques et initialisation du cache
   try {
@@ -64,6 +70,11 @@ async function main() {
       const dashboardContext = await dashboardService.getTradingContext();
       const todaysTrades = await tradeHistoryService.getTodaysTrades();
 
+      if (dashboardContext.activeContext.openPositions.length > 0) {
+        console.log("[RISK] A position is already open. New trade ignored.");
+        return;
+      }
+
       // Étape B: Vérifier les règles de risque AVANT TOUT
       const riskCheck = riskService.check(
         dashboardContext,
@@ -72,7 +83,6 @@ async function main() {
       );
       if (!riskCheck.isTradingAllowed) {
         console.warn(`[RISK] Trading stopped. Reason: ${riskCheck.reason}`);
-        // Ici, on pourrait ajouter une logique pour fermer les positions ouvertes si nécessaire
         return;
       }
 
@@ -92,25 +102,33 @@ async function main() {
       const decision: { decision: "BUY" | "SELL" | "WAIT" } =
         brainResponse.data;
 
-      if (dashboardContext.activeContext.openPositions.length > 0) {
-        console.log("[RISK] A position is already open. New trade ignored.");
-        return;
-      }
-
       // Étape D: Exécuter la décision si elle est validée
       if (decision.decision === "BUY" || decision.decision === "SELL") {
-        await brokerService.executeTrade(
+        const newTrade = await brokerService.executeTrade(
           decision.decision,
           analysis,
           dashboardContext,
           kline
         );
+        // Si le trade est bien ouvert, on le confie au manager
+        if (newTrade) {
+          positionManagerService.manageTrade(newTrade);
+        }
       } else {
         console.log("[BRAIN] Decision: WAIT. No trade executed.");
       }
     } catch (error) {
       console.error("Error during the decision cycle:", error);
       await slackService.sendError(error as Error, "Decision Cycle Failed");
+    }
+  });
+
+  webSocketService.on("position:closed", ({ symbol }) => {
+    if (symbol === config.SYMBOL) {
+      console.log(
+        `[EVENT] Position for ${symbol} was closed. Stopping manager if active.`
+      );
+      positionManagerService.stopManaging();
     }
   });
 
