@@ -1,29 +1,46 @@
 // src/services/collector/BinanceWebSocketService.ts
-import { KlineInterval, WebsocketClient, isWsFormattedKline } from "binance";
-import type { Kline } from "../../types/kline";
-import { config } from "../../config/index";
+import { WebsocketClient, WsFormattedMessage } from "binance";
 import EventEmitter from "events";
-import { CacheService } from "../CacheService";
+import { config } from "../../config/index";
 
 /**
- * Connects to Binance WebSocket streams and updates a CacheService with new kline data.
+ * Interface décrivant la structure d'un message de trade agrégé formaté
+ * que nous attendons du WebSocket avec l'option `beautify: true`.
+ */
+interface FormattedAggTrade {
+  eventType: "aggTrade";
+  eventTime: number;
+  symbol: string;
+  aggTradeId: number;
+  price: string;
+  quantity: string;
+  firstTradeId: number;
+  lastTradeId: number;
+  tradeTime: number;
+  isBuyerMaker: boolean;
+}
+
+/**
+ * Un "Type Guard" pour vérifier si le message reçu est bien un message de trade.
+ * Il vérifie la présence et la valeur de la propriété `eventType`.
+ * @param data Le message reçu du WebSocket.
+ * @returns `true` si le message est un trade agrégé, sinon `false`.
+ */
+function isFormattedAggTrade(data: any): data is FormattedAggTrade {
+  return data && data.eventType === "aggTrade";
+}
+
+/**
+ * Connects to Binance WebSocket streams.
  */
 export class BinanceWebSocketService extends EventEmitter {
   private wsClient: WebsocketClient;
   private readonly symbol: string;
-  private cacheService: CacheService;
 
-  constructor(cacheService: CacheService) {
+  constructor() {
     super();
     this.symbol = config.SYMBOL;
-    this.cacheService = cacheService;
-
-    this.wsClient = new WebsocketClient({
-      // api_key: config.API_KEY, // Non requis pour les streams publics
-      // api_secret: config.API_SECRET,
-      beautify: true, // Formate les messages pour une lecture facile
-    });
-
+    this.wsClient = new WebsocketClient({ beautify: true });
     this.setupListeners();
   }
 
@@ -32,22 +49,15 @@ export class BinanceWebSocketService extends EventEmitter {
       console.log(`WebSocket connection opened for wsKey: ${data.wsKey}`);
     });
 
-    this.wsClient.on("formattedMessage", (data) => {
-      if (isWsFormattedKline(data) && data.kline.final) {
-        const { kline, streamName } = data;
-        const interval = streamName.split("@")[1]!.replace("kline_", "");
-
-        const closedKline: Kline = {
-          openTime: kline.startTime,
-          open: String(kline.open),
-          high: String(kline.high),
-          low: String(kline.low),
-          close: String(kline.close),
-          volume: String(kline.volume),
-        };
-
-        this.cacheService.addKline(interval, closedKline);
-        this.emit(`kline:updated`, { interval, kline: closedKline });
+    // Utilise le type guard pour identifier le bon message
+    this.wsClient.on("formattedMessage", (data: WsFormattedMessage) => {
+      if (isFormattedAggTrade(data)) {
+        // A l'intérieur de ce bloc, TypeScript sait que `data` est de type `FormattedAggTrade`
+        this.emit("trade", {
+          price: parseFloat(data.price),
+          quantity: parseFloat(data.quantity),
+          timestamp: data.tradeTime,
+        });
       }
     });
 
@@ -61,14 +71,11 @@ export class BinanceWebSocketService extends EventEmitter {
   }
 
   /**
-   * Connects to the kline stream for a specific interval.
-   * @param interval The interval to connect to (e.g., '1m', '15m').
+   * Connects to the aggregate trade stream.
    */
-  public connect(interval: KlineInterval): void {
-    console.log(
-      `Subscribing to kline stream for ${this.symbol} on ${interval}...`
-    );
-    this.wsClient.subscribeKlines(this.symbol, interval, "usdm");
+  public connectToTrades(): void {
+    console.log(`Subscribing to aggregate trade stream for ${this.symbol}...`);
+    this.wsClient.subscribeAggregateTrades(this.symbol, "usdm");
   }
 
   /**

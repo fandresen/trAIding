@@ -32,10 +32,10 @@ export class BrokerService {
     decision: "BUY" | "SELL",
     analysis: AnalysisResult,
     context: DashboardContext,
-    lastKline: Kline
-  ): Promise<Trade|void> {
+    currentPrice: number
+  ): Promise<Trade | void> {
     const { orderParams, stopLossPrice, takeProfitPrice } =
-      this.calculateOrderParams(decision, analysis, context, lastKline);
+      this.calculateOrderParams(decision, analysis, context, currentPrice);
 
     if (orderParams.quantity! <= 0) {
       console.log("[BROKER] Calculated quantity is too small. Skipping order.");
@@ -66,8 +66,8 @@ export class BrokerService {
         size: parseFloat(String(mainOrder.origQty)),
         pnl: 0,
         timestamp: mainOrder.updateTime,
-        stopLossPrice: stopLossPrice, 
-        takeProfitPrice: takeProfitPrice
+        stopLossPrice: stopLossPrice,
+        takeProfitPrice: takeProfitPrice,
       };
 
       await this.tradeHistoryService.addTrade(trade);
@@ -89,7 +89,7 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "LIMIT",
-        price: parseFloat(takeProfitPrice.toFixed(4)), 
+        price: parseFloat(takeProfitPrice.toFixed(4)),
         quantity: quantity,
         reduceOnly: "true",
         timeInForce: "GTC",
@@ -99,7 +99,7 @@ export class BrokerService {
         symbol: config.SYMBOL,
         side: oppositeSide,
         type: "STOP_MARKET",
-        stopPrice: parseFloat(stopLossPrice.toFixed(4)), 
+        stopPrice: parseFloat(stopLossPrice.toFixed(4)),
         quantity: quantity,
         reduceOnly: "true",
       };
@@ -172,7 +172,7 @@ export class BrokerService {
     decision: "BUY" | "SELL",
     analysis: AnalysisResult,
     context: DashboardContext,
-    lastKline: Kline
+    currentPrice: number
   ): {
     orderParams: NewFuturesOrderParams;
     stopLossPrice: number;
@@ -182,7 +182,7 @@ export class BrokerService {
 
     const positionSizeUSD =
       context.activeContext.riskRules.calculatedPositionSizeUsd;
-    const entryPrice = parseFloat(lastKline.close);
+    const entryPrice = currentPrice;
     const atrValue = analysis.atr.value_14;
 
     const stopLossDistance = atrValue * 1.5;
@@ -205,7 +205,7 @@ export class BrokerService {
       symbol: config.SYMBOL,
       side: decision,
       type: "MARKET",
-      quantity: parseFloat(quantityInXrp.toFixed(1)), // Quantity precision for XRP is 1
+      quantity: parseFloat(quantityInXrp.toFixed(1)),
     };
 
     return { orderParams, stopLossPrice, takeProfitPrice };
