@@ -7,6 +7,7 @@ import { DashboardContext, Trade } from "../../types/dashboard";
 import { Kline } from "../../types/kline";
 import { TradeHistoryService } from "../history/TradeHistoryService";
 import { SlackNotificationService } from "../notification/SlackNotificationService";
+import { BollingerBands } from "technicalindicators";
 
 /**
  * Service to calculate and execute trades with the broker (Binance).
@@ -32,10 +33,11 @@ export class BrokerService {
     decision: "BUY" | "SELL",
     analysis: AnalysisResult,
     context: DashboardContext,
-    currentPrice: number
+    currentPrice: number,
+    knlies1m:Kline[]
   ): Promise<Trade | void> {
     const { orderParams, stopLossPrice, takeProfitPrice } =
-      this.calculateOrderParams(decision, analysis, context, currentPrice);
+      this.calculateOrderParams(decision, analysis, context, currentPrice,knlies1m);
 
     if (orderParams.quantity! <= 0) {
       console.log("[BROKER] Calculated quantity is too small. Skipping order.");
@@ -172,32 +174,37 @@ export class BrokerService {
     decision: "BUY" | "SELL",
     analysis: AnalysisResult,
     context: DashboardContext,
-    currentPrice: number
+    currentPrice: number,
+    klines1m: Kline[] // Ajout des klines1m pour calculer les BB
   ): {
     orderParams: NewFuturesOrderParams;
     stopLossPrice: number;
     takeProfitPrice: number;
   } {
     const { RISK_MANAGEMENT: rules } = config;
-
     const positionSizeUSD =
       context.activeContext.riskRules.calculatedPositionSizeUsd;
     const entryPrice = currentPrice;
-    const atrValue = analysis.atr.value_14;
 
-    const stopLossDistance = atrValue * 1.5;
+    // Calcul des Bandes de Bollinger pour le Stop-Loss
+    const closePrices1m = klines1m.map((k) => parseFloat(k.close));
+    const bbInput = { period: 20, values: closePrices1m, stdDev: 2 };
+    const lastBB = BollingerBands.calculate(bbInput).pop()!;
 
     let stopLossPrice: number;
-    let takeProfitPrice: number;
 
     if (decision === "BUY") {
-      stopLossPrice = entryPrice - stopLossDistance;
-      takeProfitPrice = entryPrice + stopLossDistance * rules.RISK_REWARD_RATIO;
+      stopLossPrice = lastBB.lower; // SL sur la bande inférieure
     } else {
       // SELL
-      stopLossPrice = entryPrice + stopLossDistance;
-      takeProfitPrice = entryPrice - stopLossDistance * rules.RISK_REWARD_RATIO;
+      stopLossPrice = lastBB.upper; // SL sur la bande supérieure
     }
+
+    const stopLossDistance = Math.abs(entryPrice - stopLossPrice);
+    const takeProfitPrice =
+      decision === "BUY"
+        ? entryPrice + stopLossDistance * rules.RISK_REWARD_RATIO
+        : entryPrice - stopLossDistance * rules.RISK_REWARD_RATIO;
 
     const quantityInXrp = positionSizeUSD / entryPrice;
 

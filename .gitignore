@@ -1,4 +1,6 @@
 node_modules
 .env
+dist
 trade-history.json
 capital-history.json
+historical-trades.json

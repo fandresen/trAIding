@@ -17,10 +17,10 @@ import { Kline } from "./types/kline";
 const klineBuilders: { [key: string]: Kline } = {};
 
 function updateKlineFromTrade(
-  interval: "1m" | "15m",
+  interval: "1m" | "5m",
   trade: { price: number; quantity: number; timestamp: number }
 ) {
-  const intervalMillis = (interval === "1m" ? 1 : 15) * 60 * 1000;
+  const intervalMillis = (interval === "1m" ? 1 : 5) * 60 * 1000;
   const openTime =
     Math.floor(trade.timestamp / intervalMillis) * intervalMillis;
 
@@ -90,7 +90,7 @@ async function main() {
     async (trade: { price: number; quantity: number; timestamp: number }) => {
       // Mettre à jour nos bougies en temps réel
       updateKlineFromTrade(config.INTERVALS.ONE_MINUTE!, trade);
-      updateKlineFromTrade(config.INTERVALS.FIFTEEN_MINUTES!, trade);
+      updateKlineFromTrade(config.INTERVALS.FIVE_MINUTES!, trade);
 
       // Créer une vue "live" des données pour l'analyse
       const historicalKlines1m =
@@ -100,14 +100,14 @@ async function main() {
         klineBuilders[config.INTERVALS.ONE_MINUTE!]!,
       ];
 
-      const historicalKlines15m =
+      const historicalKlines5m =
         cacheService.getCache(config.INTERVALS.FIFTEEN_MINUTES!) || [];
-      const liveKlines15m = [
-        ...historicalKlines15m,
+      const liveKlines5m = [
+        ...historicalKlines5m,
         klineBuilders[config.INTERVALS.FIFTEEN_MINUTES!]!,
       ];
 
-      if (liveKlines1m.length < 50 || liveKlines15m.length < 20) return;
+      if (liveKlines1m.length < 250 || liveKlines5m.length < 100) return;
 
       const analysis = analyzerService.analyze(liveKlines1m);
       if (!analysis) return;
@@ -130,11 +130,7 @@ async function main() {
           return;
         }
 
-        const decision = brainService.getDecision(
-          liveKlines1m,
-          liveKlines15m,
-          analysis
-        );
+        const decision = brainService.getDecision(liveKlines1m, liveKlines5m);
 
         if (decision === "BUY" || decision === "SELL") {
           console.log(`[BRAIN] Decision: ${decision}. Executing trade.`);
@@ -142,7 +138,8 @@ async function main() {
             decision,
             analysis,
             dashboardContext,
-            trade.price // On passe le prix actuel du trade
+            trade.price, // On passe le prix actuel du trade
+            liveKlines1m
           );
           if (newTrade) {
             positionManagerService.manageTrade(newTrade);
