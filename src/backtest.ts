@@ -75,7 +75,7 @@ async function main() {
       if (klines1m.length > config.CACHE_LIMITS["1m"]) klines1m.shift();
     }
     
-    // ✅ CORRECTION: Erreur de frappe "FFIVE_MINUTES" corrigée
+    // ✅ CORRECTION: Erreur de frappe "FIVE_MINUTES" corrigée
     const builder5m = klineBuilders[config.INTERVALS.FIVE_MINUTES!];
     if (builder5m && builder5m.openTime > last5mOpenTime) {
       klines5m.push(builder5m);
