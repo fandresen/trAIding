@@ -2,8 +2,12 @@
 import axios from 'axios';
 import { config } from '../../config';
 
+const NOTIFICATION_COOLDOWN_MS = 60000; // 1 minute
+
 export class SlackNotificationService {
   private webhookUrl: string | undefined;
+  private lastErrorMessage: string | null = null;
+  private lastNotificationTimestamp: number = 0;
 
   constructor() {
     this.webhookUrl = config.SLACK_WEBHOOK_URL;
@@ -14,6 +18,17 @@ export class SlackNotificationService {
       console.warn('SLACK_WEBHOOK_URL not configured. Skipping notification.');
       return;
     }
+
+    const errorMessage = error.message;
+    const now = Date.now();
+
+    if (errorMessage === this.lastErrorMessage && (now - this.lastNotificationTimestamp < NOTIFICATION_COOLDOWN_MS)) {
+      console.log('Skipping duplicate error notification to Slack due to cooldown.');
+      return;
+    }
+
+    this.lastErrorMessage = errorMessage;
+    this.lastNotificationTimestamp = now;
 
     const message = {
       text: `🚨 *Error in Trading Bot* 🚨`,
